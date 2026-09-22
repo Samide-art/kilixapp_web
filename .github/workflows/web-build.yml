@@ -36,44 +36,30 @@ jobs:
       - name: Export Expo Web
         run: npx expo export --platform web
 
-      - name: Prepare GitHub Pages SPA routing
+      - name: Make GitHub Pages SPA fallback
+        shell: bash
         run: |
-          cat > dist/404.html <<'EOF'
-          <!doctype html>
-          <html lang="en">
-          <head>
-            <meta charset="utf-8">
-            <meta name="robots" content="noindex">
-            <title>KILIX</title>
-            <script>
-              (function () {
-                var l = window.location;
-                var parts = l.pathname.split('/').filter(Boolean);
-                var repoIndex = parts.indexOf('kilixapp_web');
-                var route = repoIndex >= 0 ? parts.slice(repoIndex + 1).join('/') : '';
-                var base = repoIndex >= 0 ? '/' + parts.slice(0, repoIndex + 1).join('/') : '';
-                var query = l.search || '';
-                var hash = l.hash || '';
+          set -euo pipefail
 
-                // GitHub Pages cannot rewrite SPA paths. Send legacy path URLs
-                // directly to the hash route so the server only ever receives
-                // the real /kilixapp_web/ document.
-                var target = base + '/#/' + route;
-                if (query) target += query;
-                target += hash;
-                l.replace(target);
-              })();
-            </script>
-          </head>
-          <body></body>
-          </html>
-          EOF
+          # GitHub Pages has no server-side SPA rewrites. For every unknown
+          # client-side route it serves 404.html. Make that document the
+          # exact same app entry point as index.html so React Navigation
+          # receives the original URL and resolves the route in the client.
+          test -s dist/index.html
+          cp dist/index.html dist/404.html
 
-          # Hash navigation is the canonical web routing mode. No script in
-          # index.html rewrites the hash back into a server path.
+          # Disable Jekyll so Expo assets (including underscore paths) are
+          # served exactly as generated.
+          touch dist/.nojekyll
+
+          # Fail the build if either entry point is missing/empty.
           test -s dist/index.html
           test -s dist/404.html
-          touch dist/.nojekyll
+
+          echo "=== Pages artifact root ==="
+          ls -la dist
+          echo "=== Entry points ==="
+          wc -c dist/index.html dist/404.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
