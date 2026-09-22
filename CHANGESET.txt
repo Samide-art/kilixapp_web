@@ -1,0 +1,7 @@
+Kilix Web / GitHub Pages corrective patch
+
+- Added Expo experiments.baseUrl=/kilixapp_web for GitHub Pages subpath hosting.
+- Web Supabase Auth now persists its session in browser localStorage; native AsyncStorage is unchanged.
+- Web Google OAuth redirect now targets the GitHub Pages base URL; native OAuth redirect is unchanged.
+- Web React Navigation linking prefix now includes the GitHub Pages base path.
+- No supabase migrations, tables, RLS policies, RPCs, screens, or business flows were changed.
