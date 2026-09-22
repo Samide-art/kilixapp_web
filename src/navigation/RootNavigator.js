@@ -1,6 +1,10 @@
 import React from 'react';
-import { View, Image, StyleSheet } from 'react-native';
+import { View, Image, StyleSheet, Platform } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import {
+  getPathFromState as defaultGetPathFromState,
+  getStateFromPath as defaultGetStateFromPath,
+} from '@react-navigation/native';
 
 import MainTabs from './MainTabs';
 
@@ -32,27 +36,98 @@ import ImageSearchScreen from '../screens/ImageSearchScreen';
 import StoreDetailScreen from '../screens/StoreDetailScreen';
 
 const Stack = createNativeStackNavigator();
-const webBasePath = process.env.EXPO_BASE_URL || '';
-const webOriginPrefix = typeof window !== 'undefined'
-  ? `${window.location.origin}${webBasePath}`
-  : '';
 
-export const navigationLinking = {
-  prefixes: typeof window !== 'undefined' ? [webOriginPrefix, 'kilix://'] : ['kilix://'],
-  config: {
-    screens: {
-      Welcome: 'welcome', CreateStore: 'create-store', OtpVerification: 'otp-verification',
-      CountrySelection: 'country-selection', CurrencySelection: 'currency-selection',
-      Main: { screens: { الرئيسية: '', طلباتي: 'orders', الرسائل: 'messages', حسابي: 'profile' } },
-      PersonalInfo: 'personal-info', ProductDetail: 'product/:productId', OrderTracking: 'orders/:orderId',
-      NotificationSettings: 'notification-settings', Cart: 'cart', Support: 'support', About: 'about', Guide: 'guide',
-      Terms: 'terms', Privacy: 'privacy', AuthorizationManagement: 'authorization-management',
-      CookiePreferences: 'cookie-preferences', Referral: 'referral', Categories: 'categories', Notifications: 'notifications',
-      Chat: 'chat/:chatId', OrderReview: 'orders/:orderId/review', ReviewSuccess: 'review-success',
-      ImageSearch: 'image-search', StoreDetail: 'store/:storeId',
-    },
+const WEB_BASE_PATH = `/${(
+  process.env.EXPO_BASE_URL || 'kilixapp_web'
+).replace(/^\\/+|\\/+$/g, '')}`;
+
+const navigationConfig = {
+  screens: {
+    Welcome: 'welcome', CreateStore: 'create-store', OtpVerification: 'otp-verification',
+    CountrySelection: 'country-selection', CurrencySelection: 'currency-selection',
+    Main: { screens: { الرئيسية: '', طلباتي: 'orders', الرسائل: 'messages', حسابي: 'profile' } },
+    PersonalInfo: 'personal-info', ProductDetail: 'product/:productId', OrderTracking: 'orders/:orderId',
+    NotificationSettings: 'notification-settings', Cart: 'cart', Support: 'support', About: 'about', Guide: 'guide',
+    Terms: 'terms', Privacy: 'privacy', AuthorizationManagement: 'authorization-management',
+    CookiePreferences: 'cookie-preferences', Referral: 'referral', Categories: 'categories', Notifications: 'notifications',
+    Chat: 'chat/:chatId', OrderReview: 'orders/:orderId/review', ReviewSuccess: 'review-success',
+    ImageSearch: 'image-search', StoreDetail: 'store/:storeId',
   },
 };
+
+const normalizeWebPath = (value) => {
+  let path = String(value || '/');
+
+  if (/^https?:\\/\\//i.test(path)) {
+    try {
+      const url = new URL(path);
+      path = url.pathname + url.search + url.hash;
+    } catch {}
+  }
+
+  const hashIndex = path.indexOf('#');
+  if (hashIndex >= 0) {
+    path = path.slice(hashIndex + 1) || '/';
+  }
+
+  if (path.startsWith(WEB_BASE_PATH)) {
+    path = path.slice(WEB_BASE_PATH.length) || '/';
+  }
+
+  if (!path.startsWith('/')) path = `/${path}`;
+  return path;
+};
+
+const webLinking = {
+  prefixes: typeof window !== 'undefined'
+    ? [
+        `${window.location.origin}${WEB_BASE_PATH}`,
+        `${window.location.origin}${WEB_BASE_PATH}/#`,
+      ]
+    : [],
+  config: navigationConfig,
+
+  // Hash-based URLs keep every client-side route on the same server resource.
+  // This is the root fix for GitHub Pages, which cannot rewrite arbitrary SPA paths.
+  getInitialURL() {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      return window.location.href;
+    }
+    return undefined;
+  },
+
+  subscribe(listener) {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') {
+      return () => {};
+    }
+
+    const notify = () => listener(window.location.href);
+    window.addEventListener('popstate', notify);
+    window.addEventListener('hashchange', notify);
+
+    return () => {
+      window.removeEventListener('popstate', notify);
+      window.removeEventListener('hashchange', notify);
+    };
+  },
+
+  getStateFromPath(path, options) {
+    return defaultGetStateFromPath(normalizeWebPath(path), options);
+  },
+
+  getPathFromState(state, options) {
+    const path = defaultGetPathFromState(state, options);
+    const normalized = path && path !== '/' ? path : '/';
+    return `${WEB_BASE_PATH}/#${normalized.startsWith('/') ? normalized : `/${normalized}`}`;
+  },
+};
+
+export const navigationLinking = Platform.OS === 'web'
+  ? webLinking
+  : {
+      prefixes: ['kilix://'],
+      config: navigationConfig,
+    };
 
 
 export default function RootNavigator() {
