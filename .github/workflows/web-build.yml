@@ -39,66 +39,38 @@ jobs:
       - name: Prepare GitHub Pages SPA routing
         run: |
           cat > dist/404.html <<'EOF'
-          <!DOCTYPE html>
+          <!doctype html>
           <html lang="en">
           <head>
             <meta charset="utf-8">
             <meta name="robots" content="noindex">
             <title>KILIX</title>
             <script>
-              var l = window.location;
-              var pathSegmentsToKeep = 1;
-              var route = l.pathname.split('/').slice(1 + pathSegmentsToKeep).join('/');
-              var base = l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/');
-              l.replace(
-                l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
-                base + '/?/' + route.replace(/&/g, '~and~') +
-                (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
-                l.hash
-              );
+              (function () {
+                var l = window.location;
+                var parts = l.pathname.split('/').filter(Boolean);
+                var repoIndex = parts.indexOf('kilixapp_web');
+                var route = repoIndex >= 0 ? parts.slice(repoIndex + 1).join('/') : '';
+                var base = repoIndex >= 0 ? '/' + parts.slice(0, repoIndex + 1).join('/') : '';
+                var query = l.search || '';
+                var hash = l.hash || '';
+
+                // GitHub Pages cannot rewrite SPA paths. Send legacy path URLs
+                // directly to the hash route so the server only ever receives
+                // the real /kilixapp_web/ document.
+                var target = base + '/#/' + route;
+                if (query) target += query;
+                target += hash;
+                l.replace(target);
+              })();
             </script>
           </head>
           <body></body>
           </html>
           EOF
 
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("dist/index.html")
-          html = p.read_text(encoding="utf-8")
-          restore = r'''<script>
-          (function () {
-            var l = window.location;
-            var search = l.search;
-            if (!search || search.indexOf("?/") !== 0) return;
-            var decoded = search.slice(2).replace(/~and~/g, "&");
-            var hashIndex = decoded.indexOf("#");
-            var hash = hashIndex >= 0 ? decoded.slice(hashIndex) : l.hash;
-            var routeAndQuery = hashIndex >= 0 ? decoded.slice(0, hashIndex) : decoded;
-            var queryIndex = routeAndQuery.indexOf("&");
-            var route = queryIndex >= 0 ? routeAndQuery.slice(0, queryIndex) : routeAndQuery;
-            var query = queryIndex >= 0 ? routeAndQuery.slice(queryIndex + 1) : "";
-            var base = l.pathname.replace(/\/$/, "");
-            history.replaceState(null, "", base + "/" + route.replace(/^\//, "") + (query ? "?" + query : "") + hash);
-          })();
-          </script>'''
-          if "(function () {" not in html:
-              html = html.replace("<script", restore + "\n    <script", 1)
-              p.write_text(html, encoding="utf-8")
-          PY
-
-          # GitHub Pages has no SPA rewrite rule. Pre-create the concrete routes
-          # so refreshing normal KILIX screens never reaches the Pages 404 handler.
-          for route in \
-            welcome create-store otp-verification country-selection currency-selection \
-            orders messages profile personal-info notification-settings cart support about guide \
-            terms privacy authorization-management cookie-preferences referral categories notifications \
-            image-search store; do
-            mkdir -p "dist/$route"
-            cp dist/index.html "dist/$route/index.html"
-            cp dist/index.html "dist/$route.html"
-          done
-
+          # Hash navigation is the canonical web routing mode. No script in
+          # index.html rewrites the hash back into a server path.
           test -s dist/index.html
           test -s dist/404.html
           touch dist/.nojekyll
