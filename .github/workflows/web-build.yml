@@ -36,10 +36,61 @@ jobs:
       - name: Export Expo Web
         run: npx expo export --platform web
 
-      - name: Validate Pages output
+      - name: Prepare GitHub Pages SPA routing
         run: |
+          cat > dist/404.html <<'EOF'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex">
+  <title>KILIX</title>
+  <script>
+    // GitHub Pages Project Pages SPA fallback.
+    // Keep /kilixapp_web/ and move the client-side route into the query string.
+    var l = window.location;
+    var pathSegmentsToKeep = 1;
+    var route = l.pathname.split('/').slice(1 + pathSegmentsToKeep).join('/');
+    var base = l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/');
+    l.replace(
+      l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+      base + '/?/' + route.replace(/&/g, '~and~') +
+      (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+      l.hash
+    );
+  </script>
+</head>
+<body></body>
+</html>
+EOF
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("dist/index.html")
+          html = p.read_text(encoding="utf-8")
+          restore = r'''<script>
+          // Restore a client-side route redirected through GitHub Pages 404.html.
+          (function () {
+            var l = window.location;
+            var search = l.search;
+            if (!search || search.indexOf("?/") !== 0) return;
+            var decoded = search.slice(2).replace(/~and~/g, "&");
+            var hashIndex = decoded.indexOf("#");
+            var hash = hashIndex >= 0 ? decoded.slice(hashIndex) : l.hash;
+            var routeAndQuery = hashIndex >= 0 ? decoded.slice(0, hashIndex) : decoded;
+            var queryIndex = routeAndQuery.indexOf("&");
+            var route = queryIndex >= 0 ? routeAndQuery.slice(0, queryIndex) : routeAndQuery;
+            var query = queryIndex >= 0 ? routeAndQuery.slice(queryIndex + 1) : "";
+            var base = l.pathname.replace(/\/$/, "");
+            history.replaceState(null, "", base + "/" + route.replace(/^\//, "") + (query ? "?" + query : "") + hash);
+          })();
+          </script>'''
+          if "Restore a client-side route redirected through GitHub Pages 404.html" not in html:
+              html = html.replace("<script", restore + "\n    <script", 1)
+              p.write_text(html, encoding="utf-8")
+          PY
+
           test -s dist/index.html
-          cp dist/index.html dist/404.html
           test -s dist/404.html
           touch dist/.nojekyll
 
