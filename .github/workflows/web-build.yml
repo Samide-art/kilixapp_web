@@ -39,37 +39,34 @@ jobs:
       - name: Prepare GitHub Pages SPA routing
         run: |
           cat > dist/404.html <<'EOF'
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="robots" content="noindex">
-  <title>KILIX</title>
-  <script>
-    // GitHub Pages Project Pages SPA fallback.
-    // Keep /kilixapp_web/ and move the client-side route into the query string.
-    var l = window.location;
-    var pathSegmentsToKeep = 1;
-    var route = l.pathname.split('/').slice(1 + pathSegmentsToKeep).join('/');
-    var base = l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/');
-    l.replace(
-      l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
-      base + '/?/' + route.replace(/&/g, '~and~') +
-      (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
-      l.hash
-    );
-  </script>
-</head>
-<body></body>
-</html>
-EOF
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="robots" content="noindex">
+            <title>KILIX</title>
+            <script>
+              var l = window.location;
+              var pathSegmentsToKeep = 1;
+              var route = l.pathname.split('/').slice(1 + pathSegmentsToKeep).join('/');
+              var base = l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/');
+              l.replace(
+                l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+                base + '/?/' + route.replace(/&/g, '~and~') +
+                (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+                l.hash
+              );
+            </script>
+          </head>
+          <body></body>
+          </html>
+          EOF
 
           python3 - <<'PY'
           from pathlib import Path
           p = Path("dist/index.html")
           html = p.read_text(encoding="utf-8")
           restore = r'''<script>
-          // Restore a client-side route redirected through GitHub Pages 404.html.
           (function () {
             var l = window.location;
             var search = l.search;
@@ -85,7 +82,7 @@ EOF
             history.replaceState(null, "", base + "/" + route.replace(/^\//, "") + (query ? "?" + query : "") + hash);
           })();
           </script>'''
-          if "Restore a client-side route redirected through GitHub Pages 404.html" not in html:
+          if "(function () {" not in html:
               html = html.replace("<script", restore + "\n    <script", 1)
               p.write_text(html, encoding="utf-8")
           PY
