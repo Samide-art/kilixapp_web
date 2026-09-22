@@ -87,6 +87,18 @@ jobs:
               p.write_text(html, encoding="utf-8")
           PY
 
+          # GitHub Pages has no SPA rewrite rule. Pre-create the concrete routes
+          # so refreshing normal KILIX screens never reaches the Pages 404 handler.
+          for route in \
+            welcome create-store otp-verification country-selection currency-selection \
+            orders messages profile personal-info notification-settings cart support about guide \
+            terms privacy authorization-management cookie-preferences referral categories notifications \
+            image-search store; do
+            mkdir -p "dist/$route"
+            cp dist/index.html "dist/$route/index.html"
+            cp dist/index.html "dist/$route.html"
+          done
+
           test -s dist/index.html
           test -s dist/404.html
           touch dist/.nojekyll
